@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c ' *)",
+      "Bash(python -c \"import sys; print\\(sys.executable\\)\")",
+      "Bash(pip show *)",
+      "Bash(where python *)",
+      "Bash(conda run *)",
+      "Read(//c/Users/wande/anaconda3/envs/**)",
+      "Read(//c/Users/wande/anaconda3/**)",
+      "Bash(\"C:\\\\Users\\\\wande\\\\anaconda3\\\\envs\\\\XCS236\\\\python.exe\" -c \"import torch, diffusers, einops, torchvision, flask; print\\('ALL OK'\\)\")",
+      "Bash(\"C:\\\\Users\\\\wande\\\\anaconda3\\\\python.exe\" -c \"import torch, diffusers, einops, torchvision; print\\('ALL OK'\\); print\\('torch:', torch.__version__\\)\")"
+    ]
+  }
+}

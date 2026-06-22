@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conditional Face Generator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0d0d1a;
+      --surface:  #13132b;
+      --card:     #1a1a35;
+      --border:   #272750;
+      --accent:   #7c83fd;
+      --accent2:  #a78bfa;
+      --text:     #e2e2f0;
+      --muted:    #6b6b9a;
+      --success:  #4ade80;
+      --radius:   10px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: 300px 1fr;
+    }
+
+    /* ── Sidebar ─────────────────────────────────────────────── */
+    .sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .sidebar-header {
+      padding: 20px 16px 14px;
+      border-bottom: 1px solid var(--border);
+      background: var(--card);
+    }
+
+    .sidebar-header h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: 0.3px;
+    }
+
+    .sidebar-meta {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 3px;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .btn-sm {
+      flex: 1;
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      border-radius: 6px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.18s;
+    }
+
+    .btn-sm:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .selected-count {
+      display: inline-block;
+      background: var(--accent);
+      color: #fff;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 10px;
+      margin-left: 6px;
+      min-width: 18px;
+      text-align: center;
+    }
+
+    .attr-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px 10px 20px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    .attr-scroll::-webkit-scrollbar { width: 4px; }
+    .attr-scroll::-webkit-scrollbar-track { background: transparent; }
+    .attr-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .group {
+      margin-bottom: 10px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .group-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      cursor: pointer;
+      user-select: none;
+      border-bottom: 1px solid transparent;
+      transition: background 0.15s;
+    }
+
+    .group-header:hover { background: rgba(124,131,253,0.08); }
+
+    .group-header.open { border-bottom-color: var(--border); }
+
+    .group-name {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.9px;
+      color: var(--accent);
+    }
+
+    .group-arrow {
+      font-size: 0.6rem;
+      color: var(--muted);
+      transition: transform 0.2s;
+    }
+
+    .group-header.open .group-arrow { transform: rotate(90deg); }
+
+    .group-body {
+      display: none;
+      padding: 6px 8px 8px;
+    }
+
+    .group-body.open { display: block; }
+
+    .attr-label {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 5px 6px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.13s;
+    }
+
+    .attr-label:hover { background: rgba(124,131,253,0.1); }
+
+    .attr-cb { display: none; }
+
+    .cb-box {
+      width: 15px;
+      height: 15px;
+      border: 1.5px solid var(--border);
+      border-radius: 3px;
+      flex-shrink: 0;
+      position: relative;
+      transition: all 0.15s;
+      background: var(--surface);
+    }
+
+    .attr-cb:checked ~ .cb-box {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .attr-cb:checked ~ .cb-box::after {
+      content: '';
+      position: absolute;
+      left: 3px;
+      top: 0px;
+      width: 5px;
+      height: 9px;
+      border: 2px solid #fff;
+      border-top: none;
+      border-left: none;
+      transform: rotate(45deg);
+    }
+
+    .attr-text {
+      font-size: 0.8rem;
+      color: var(--text);
+      line-height: 1.2;
+    }
+
+    .attr-num {
+      font-size: 0.65rem;
+      color: var(--muted);
+      margin-right: 3px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ── Main ─────────────────────────────────────────────────── */
+    .main {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      background: var(--bg);
+      overflow: hidden;
+    }
+
+    .main-header {
+      padding: 16px 24px 12px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .main-title {
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    .device-badge {
+      font-size: 0.7rem;
+      padding: 3px 9px;
+      border-radius: 20px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+
+    .content {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      min-height: 0;
+    }
+
+    .image-wrap {
+      width: 100%;
+      max-width: 440px;
+      aspect-ratio: 1;
+      background: var(--card);
+      border: 2px solid var(--border);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      text-align: center;
+      padding: 20px;
+    }
+
+    .placeholder-icon {
+      font-size: 2.8rem;
+      opacity: 0.35;
+      line-height: 1;
+    }
+
+    .placeholder p {
+      font-size: 0.82rem;
+      line-height: 1.5;
+    }
+
+    #genImg {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 14px;
+      display: none;
+    }
+
+    .spinner {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .generating-overlay {
+      position: absolute;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      background: rgba(13, 13, 26, 0.75);
+      backdrop-filter: blur(4px);
+      border-radius: 14px;
+    }
+
+    .pulse-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+
+    .pulse-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: pulse-dot 1.2s ease-in-out infinite;
+    }
+
+    .pulse-dot:nth-child(2) { animation-delay: 0.15s; background: var(--accent2); }
+    .pulse-dot:nth-child(3) { animation-delay: 0.30s; }
+    .pulse-dot:nth-child(4) { animation-delay: 0.45s; background: var(--accent2); }
+    .pulse-dot:nth-child(5) { animation-delay: 0.60s; }
+    .pulse-dot:nth-child(6) { animation-delay: 0.75s; background: var(--accent2); }
+    .pulse-dot:nth-child(7) { animation-delay: 0.90s; }
+    .pulse-dot:nth-child(8) { animation-delay: 1.05s; background: var(--accent2); }
+    .pulse-dot:nth-child(9) { animation-delay: 1.20s; }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 0.2; transform: scale(0.8); }
+      50%       { opacity: 1;   transform: scale(1.2); }
+    }
+
+    .generating-label {
+      font-size: 0.8rem;
+      color: var(--muted);
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Controls ─────────────────────────────────────────────── */
+    .controls {
+      padding: 14px 24px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    /* method toggle */
+    .method-toggle {
+      display: flex;
+      gap: 4px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 3px;
+      flex-shrink: 0;
+    }
+
+    .method-btn {
+      padding: 5px 14px;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: transparent;
+      color: var(--muted);
+      transition: all 0.18s;
+    }
+
+    .method-btn.active {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .ddpm-warning {
+      font-size: 0.7rem;
+      color: #f59e0b;
+      display: none;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .ddpm-warning.show { display: flex; }
+
+    .steps-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .steps-group label { white-space: nowrap; }
+
+    #stepsValue {
+      color: var(--accent);
+      font-weight: 700;
+      min-width: 28px;
+      display: inline-block;
+    }
+
+    #stepsSlider {
+      flex: 1;
+      max-width: 180px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .attrs-summary {
+      flex: 2;
+      font-size: 0.75rem;
+      color: var(--muted);
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+
+    .attrs-summary span {
+      display: inline-block;
+      background: rgba(124,131,253,0.15);
+      color: var(--accent);
+      border-radius: 4px;
+      padding: 1px 6px;
+      margin: 1px 2px;
+      font-size: 0.68rem;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .btn-generate {
+      padding: 10px 28px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      letter-spacing: 0.2px;
+    }
+
+    .btn-generate:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 20px rgba(124,131,253,0.4);
+    }
+
+    .btn-generate:active:not(:disabled) { transform: translateY(0); }
+
+    .btn-generate:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .btn-download {
+      padding: 10px 20px;
+      background: transparent;
+      border: 1.5px solid var(--accent);
+      border-radius: 8px;
+      color: var(--accent);
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-download:hover:not(:disabled) {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .btn-download:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    /* ── Toast ─────────────────────────────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #ef4444;
+      color: #fff;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      max-width: 360px;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: all 0.25s;
+      pointer-events: none;
+      z-index: 999;
+    }
+
+    #toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Sidebar ──────────────────────────────────────────────────────── -->
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <h1>Face Generator</h1>
+    <div class="sidebar-meta">DiT · Conditional Diffusion · CelebA-HQ</div>
+    <div class="header-actions">
+      <button class="btn-sm" onclick="clearAll()">Clear all</button>
+      <button class="btn-sm" onclick="selectPreset('female')">Young ♀</button>
+      <button class="btn-sm" onclick="selectPreset('male')">Young ♂</button>
+    </div>
+  </div>
+  <div class="attr-scroll" id="attrScroll"></div>
+</aside>
+
+<!-- ── Main ─────────────────────────────────────────────────────────── -->
+<div class="main">
+  <div class="main-header">
+    <span class="main-title">Generated Image</span>
+    <span class="device-badge" id="deviceBadge">loading…</span>
+  </div>
+
+  <div class="content">
+    <div class="image-wrap" id="imageWrap">
+      <div class="placeholder" id="placeholder">
+        <div class="placeholder-icon">🖼</div>
+        <p>Select attributes on the left,<br>then click <strong>Generate</strong></p>
+      </div>
+      <img id="genImg" alt="Generated face">
+      <div class="generating-overlay" id="spinner">
+        <div class="pulse-grid">
+          <div class="pulse-dot"></div><div class="pulse-dot"></div><div class="pulse-dot"></div>
+          <div class="pulse-dot"></div><div class="pulse-dot"></div><div class="pulse-dot"></div>
+          <div class="pulse-dot"></div><div class="pulse-dot"></div><div class="pulse-dot"></div>
+        </div>
+        <div class="generating-label">Generating…</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="method-toggle">
+      <button class="method-btn active" id="btnDDIM" onclick="setMethod('ddim')">DDIM</button>
+      <button class="method-btn"        id="btnDDPM" onclick="setMethod('ddpm')">DDPM</button>
+    </div>
+
+    <div class="steps-group" id="stepsGroup">
+      <label>Steps: <span id="stepsValue">50</span></label>
+      <input type="range" id="stepsSlider" min="10" max="100" value="50" step="5"
+             oninput="document.getElementById('stepsValue').textContent = this.value">
+    </div>
+
+    <div class="ddpm-warning" id="ddpmWarning">
+      ⚠ DDPM is much slower than DDIM
+    </div>
+
+    <div class="attrs-summary" id="attrsSummary">No attributes selected</div>
+
+    <div class="btn-row">
+      <button class="btn-generate" id="generateBtn" onclick="generate()">✦ Generate</button>
+      <button class="btn-download" id="downloadBtn" onclick="download()" disabled>⬇ Download</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+  // ── Data ──────────────────────────────────────────────────────────────────
+
+  const ATTR_KEYS = [
+    '5_o_Clock_Shadow','Arched_Eyebrows','Attractive','Bags_Under_Eyes','Bald',
+    'Bangs','Big_Lips','Big_Nose','Black_Hair','Blond_Hair','Blurry',
+    'Brown_Hair','Bushy_Eyebrows','Chubby','Double_Chin','Eyeglasses',
+    'Goatee','Gray_Hair','Heavy_Makeup','High_Cheekbones','Male',
+    'Mouth_Slightly_Open','Mustache','Narrow_Eyes','No_Beard','Oval_Face',
+    'Pale_Skin','Pointy_Nose','Receding_Hairline','Rosy_Cheeks','Sideburns',
+    'Smiling','Straight_Hair','Wavy_Hair','Wearing_Earrings','Wearing_Hat',
+    'Wearing_Lipstick','Wearing_Necklace','Wearing_Necktie','Young',
+  ];
+
+  const GROUPS = [
+    { name: 'Overall', attrs: [
+      { num:  3, key: 'Attractive' },
+      { num: 11, key: 'Blurry' },
+    ]},
+    { name: 'Age', attrs: [
+      { num: 40, key: 'Young' },
+    ]},
+    { name: 'Gender', attrs: [
+      { num: 21, key: 'Male' },
+    ]},
+    { name: 'Face Shape', attrs: [
+      { num: 26, key: 'Oval_Face' },
+      { num: 15, key: 'Double_Chin' },
+      { num: 14, key: 'Chubby' },
+      { num: 20, key: 'High_Cheekbones' },
+    ]},
+    { name: 'Eye', attrs: [
+      { num:  4, key: 'Bags_Under_Eyes' },
+      { num: 24, key: 'Narrow_Eyes' },
+    ]},
+    { name: 'Brow', attrs: [
+      { num:  2, key: 'Arched_Eyebrows' },
+      { num: 13, key: 'Bushy_Eyebrows' },
+    ]},
+    { name: 'Nose', attrs: [
+      { num:  8, key: 'Big_Nose' },
+      { num: 28, key: 'Pointy_Nose' },
+    ]},
+    { name: 'Lip', attrs: [
+      { num:  7, key: 'Big_Lips' },
+    ]},
+    { name: 'Skin', attrs: [
+      { num: 27, key: 'Pale_Skin' },
+      { num: 30, key: 'Rosy_Cheeks' },
+    ]},
+    { name: 'Hair', attrs: [
+      { num:  9, key: 'Black_Hair' },
+      { num: 10, key: 'Blond_Hair' },
+      { num: 12, key: 'Brown_Hair' },
+      { num: 18, key: 'Gray_Hair' },
+      { num:  5, key: 'Bald' },
+      { num: 33, key: 'Straight_Hair' },
+      { num: 34, key: 'Wavy_Hair' },
+      { num:  6, key: 'Bangs' },
+      { num: 29, key: 'Receding_Hairline' },
+    ]},
+    { name: 'Beard', attrs: [
+      { num:  1, key: '5_o_Clock_Shadow' },
+      { num: 25, key: 'No_Beard' },
+      { num: 23, key: 'Mustache' },
+      { num: 31, key: 'Sideburns' },
+      { num: 17, key: 'Goatee' },
+    ]},
+    { name: 'Expression', attrs: [
+      { num: 32, key: 'Smiling' },
+      { num: 22, key: 'Mouth_Slightly_Open' },
+    ]},
+    { name: 'Accessories', attrs: [
+      { num: 35, key: 'Wearing_Earrings' },
+      { num: 36, key: 'Wearing_Hat' },
+      { num: 38, key: 'Wearing_Necklace' },
+      { num: 39, key: 'Wearing_Necktie' },
+      { num: 16, key: 'Eyeglasses' },
+    ]},
+    { name: 'Make Up', attrs: [
+      { num: 37, key: 'Wearing_Lipstick' },
+      { num: 19, key: 'Heavy_Makeup' },
+    ]},
+  ];
+
+  // ── Build Sidebar ─────────────────────────────────────────────────────────
+
+  function buildSidebar() {
+    const container = document.getElementById('attrScroll');
+    GROUPS.forEach((group, gi) => {
+      const groupEl = document.createElement('div');
+      groupEl.className = 'group';
+
+      const header = document.createElement('div');
+      header.className = 'group-header open';
+      header.dataset.group = gi;
+      header.innerHTML = `<span class="group-name">${group.name}</span><span class="group-arrow">▶</span>`;
+      header.onclick = () => {
+        header.classList.toggle('open');
+        body.classList.toggle('open');
+      };
+
+      const body = document.createElement('div');
+      body.className = 'group-body open';
+
+      group.attrs.forEach(attr => {
+        const label = document.createElement('label');
+        label.className = 'attr-label';
+        label.innerHTML = `
+          <input type="checkbox" class="attr-cb" data-key="${attr.key}">
+          <span class="cb-box"></span>
+          <span class="attr-text">${attr.key.replace(/_/g, ' ')}</span>`;
+        label.querySelector('.attr-cb').addEventListener('change', updateSummary);
+        body.appendChild(label);
+      });
+
+      groupEl.appendChild(header);
+      groupEl.appendChild(body);
+      container.appendChild(groupEl);
+    });
+  }
+
+  // ── Summary ───────────────────────────────────────────────────────────────
+
+  function updateSummary() {
+    const checked = [...document.querySelectorAll('.attr-cb:checked')];
+    const summaryEl = document.getElementById('attrsSummary');
+    const countEl = document.getElementById('selectedCount');
+
+    if (countEl) countEl.textContent = checked.length;
+
+    if (checked.length === 0) {
+      summaryEl.innerHTML = '<em style="color:var(--muted)">No attributes selected</em>';
+    } else {
+      summaryEl.innerHTML = checked.map(cb =>
+        `<span>${cb.dataset.key.replace(/_/g, ' ')}</span>`
+      ).join('');
+    }
+  }
+
+  // ── Presets ───────────────────────────────────────────────────────────────
+
+  const PRESETS = {
+    female: ['Young', 'Attractive', 'High_Cheekbones', 'Smiling', 'Wearing_Lipstick', 'No_Beard'],
+    male:   ['Young', 'Male', 'High_Cheekbones', 'Smiling', 'No_Beard'],
+  };
+
+  function clearAll() {
+    document.querySelectorAll('.attr-cb').forEach(cb => cb.checked = false);
+    updateSummary();
+  }
+
+  function selectPreset(name) {
+    clearAll();
+    const keys = PRESETS[name] || [];
+    keys.forEach(k => {
+      const cb = document.querySelector(`.attr-cb[data-key="${k}"]`);
+      if (cb) cb.checked = true;
+    });
+    updateSummary();
+  }
+
+  // ── Method toggle ─────────────────────────────────────────────────────────
+
+  let currentMethod = 'ddim';
+
+  function setMethod(m) {
+    currentMethod = m;
+    document.getElementById('btnDDIM').classList.toggle('active', m === 'ddim');
+    document.getElementById('btnDDPM').classList.toggle('active', m === 'ddpm');
+    document.getElementById('ddpmWarning').classList.toggle('show', m === 'ddpm');
+
+    const slider = document.getElementById('stepsSlider');
+    const label  = document.getElementById('stepsValue');
+    document.getElementById('stepsGroup').style.display = m === 'ddpm' ? 'none' : 'flex';
+  }
+
+  // ── Generate ──────────────────────────────────────────────────────────────
+
+  async function generate() {
+    const btn = document.getElementById('generateBtn');
+    const spinner = document.getElementById('spinner');
+    const placeholder = document.getElementById('placeholder');
+    const img = document.getElementById('genImg');
+    const steps = parseInt(document.getElementById('stepsSlider').value);
+
+    btn.disabled = true;
+    btn.textContent = 'Generating…';
+    placeholder.style.display = 'none';
+    img.style.display = 'none';
+    spinner.style.display = 'flex';
+
+    // Build 40-element attribute vector in ATTR_KEYS order
+    const attrMap = {};
+    document.querySelectorAll('.attr-cb').forEach(cb => {
+      attrMap[cb.dataset.key] = cb.checked ? 1.0 : 0.0;
+    });
+    const attributes = ATTR_KEYS.map(k => attrMap[k] ?? 0.0);
+
+    try {
+      const resp = await fetch('/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attributes, num_steps: steps, method: currentMethod }),
+      });
+      const data = await resp.json();
+
+      if (data.success) {
+        img.src = 'data:image/png;base64,' + data.image;
+        img.style.display = 'block';
+        document.getElementById('downloadBtn').disabled = false;
+      } else {
+        showToast('Generation failed: ' + data.error);
+        placeholder.style.display = 'flex';
+      }
+    } catch (e) {
+      showToast('Request failed: ' + e.message);
+      placeholder.style.display = 'flex';
+    } finally {
+      spinner.style.display = 'none';
+      btn.disabled = false;
+      btn.textContent = '✦ Generate';
+    }
+  }
+
+  function download() {
+    const a = document.createElement('a');
+    a.href = '/download';
+    a.download = 'generated_face.png';
+    a.click();
+  }
+
+  // ── Toast ─────────────────────────────────────────────────────────────────
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 4000);
+  }
+
+  // ── Device info ───────────────────────────────────────────────────────────
+
+  fetch('/device').then(r => r.json()).then(d => {
+    document.getElementById('deviceBadge').textContent = d.device;
+  }).catch(() => {});
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+
+  buildSidebar();
+  updateSummary();
+</script>
+</body>
+</html>
